@@ -1,87 +1,157 @@
-from django.shortcuts import render,redirect
+import string
+from django.shortcuts import render,redirect,HttpResponse,Http404
+from django.contrib import messages
 from .models import *
-from audit.models import *
-from bank.models import *
+from admins.models import *
 from user.models import *
+from django.conf import settings
+import PyPDF2,hmac
+from hashlib import *
+import random
+import os
+
+
 # Create your views here.
-def admins(request):
-    return render(request,'admin/admin.html')
-
-def login(request):
-    if request.method == 'POST':
-        email=request.POST['email']
-        password = request.POST['password']
-        try:
-            detail=admin.objects.get(email=email,password=password)
-            request.session['admin']=detail.name
-            return redirect('/admin1')
-        except:
-            return redirect('/admin1/login')
-    return render(request,'admin/login.html')
-def audittable(request):
-    data=auditaccess.objects.all()
-    return render(request,'admin/auditaccess.html',{'data':data})
-
-def banktable(request):
-    data = bankaccess.objects.all()
-    return render(request,'admin/bankaccess.html',{'data':data})
-
-def usertable(request):
-    data = useraccess.objects.all()
-    return render(request,'admin/useraccess.html',{'data':data})
-
-def auditapprove(request,name,email,auditerid,password):
-    audit(name=name, email=email, auditerid=auditerid, password=password).save()
-    auditaccess.objects.filter(name=name,email=email,auditerid=auditerid,password=password).delete()
-    return redirect('/admin1/auditaccess')
-
-def bankapprove(request,name,email,managerid,password):
-    bank(name=name,email=email,managerid=managerid,password=password).save()
-    bankaccess.objects.filter(name=name,email=email,managerid=managerid,password=password).delete()
-    return redirect('/admin1/bankaccess')
-
-def userapprove(request,name,email,type,password,userid):
-    user(name=name,email=email,area=type,password=password,userid=userid).save()
-    useraccess.objects.filter(name=name,email=email,area=type,password=password).delete()
-    return redirect('/admin1/useraccess')
-
 def audits(request):
-    data = audit.objects.all()
-    return render(request,'admin/audit.html',{'data':data})
+    return render(request,'audit/audit.html')
 
-def banks(request):
-    data = bank.objects.all()
-    return render(request,'admin/bank.html',{'data':data})
-
-def users(request):
-    data = user.objects.all()
-    return render(request,'admin/user.html',{'data':data})
-
-def keyaccess(request):
-    data=requiredlist.objects.filter(access=0)
-    if request.method=='POST':
-        key=request.POST['key'][2:]
-        requiredlist.objects.filter(key=key).update(access=1)
-        return redirect('/admin1/keyaccess')
-    return render(request,'admin/keyaccess.html',{'data':data})
-
-def bankkey(request):
-    data=schemeupload.objects.filter(access=0)
-    data1=loanupload.objects.filter(access=0)
-    data2 = bankaccount.objects.filter(access=0)
-    if request.method=='POST':
-        if request.POST['type']=='scheme':
-            key=request.POST['key'][2:]
-            schemeupload.objects.filter(pattakey=key).update(access=1)
-        elif request.POST['type']=='bank':
-            id = request.POST['id']
-            bankaccount.objects.filter(id=id).update(access=1)
+def login(request,login):
+    if request.method =='POST':
+        if login == 'login':
+            email=request.POST['email']
+            password=request.POST['password']
+            try:
+                detail=audit.objects.get(email=email,password=password)
+                request.session['audit']=detail.name
+                messages.success(request,"SUCCESSFULLY LOGGED IN AS AUDITER")
+                return redirect('/audit')
+            except:
+                messages.success(request, "INVALID EMAIL ID OR PASSWORD")
+                return redirect('/audit/login/login')
         else:
-            key = request.POST['key'][2:]
-            loanupload.objects.filter(key=key).update(access=1)
-        return redirect('/admin1/bankkey')
-    return render(request,'admin/bankkey.html',{'data':data,'data1':data1,'data2':data2})
+            name = request.POST['name']
+            email = request.POST['email']
+            password = request.POST['password']
+            auditerid = request.POST['id']
+            auditaccess(name=name,email=email,password=password,auditerid=auditerid).save()
+            messages.success(request, "DETAILS HAS BEEN REGISTERED SUCCESSFULLY ")
+            return redirect('/')
+    return render(request,'audit/login.html',{'login':login})
+
+def client(request):
+    data=user.objects.filter(area='AUDIT')
+    req=requirements.objects.values('type').distinct()
+    return render(request,'audit/clients.html',{'data':data,'req':req})
+
+def list(request,userid,type):
+    if type == 'none':
+        return redirect('/audit/client')
+    req=requirements.objects.filter(type=type)
+    return render(request,'audit/checklist.html',{'type':type,'userid':userid,'req':req})
+
+def checklist(request,userid):
+    if request.method == 'POST':
+        type = request.POST.getlist('check')
+        requestid=''.join(random.sample(string.digits,k=5))
+        for i in type:
+            requiredlist(requestid=requestid,userid=userid,list=i).save()
+        messages.success(request, "DOCUMENT REQUEST HAS BEEN SENT")
+        return redirect('/audit/client')
+
+def request(request):
+    data = user.objects.filter(area='AUDIT')
+    return render(request,'audit/requestedlist.html',{'data':data})
+
+def viewrequest(request,userid):
+    users = user.objects.get(userid=userid)
+    lists = requiredlist.objects.filter(userid=userid).values('requestid').distinct()
+    return render(request, 'audit/requestedlist1.html', {'list':lists,'u':users})
+
+def viewlist(request,requestid):
+    data = requiredlist.objects.filter(requestid=requestid)
+    return render(request,'audit/viewlist.html',{'data':data,'requestid':requestid})
+
+def reqaccess(request,requestid,id):
+    requiredlist.objects.filter(id=id).update(access=0)
+    messages.success(request, "REQUEST FOR THE KEY HAS BEEN SENT TO ADMIN")
+    return redirect(f'/audit/view/{requestid}')
+
+def typeupload(request):
+    req=requirements.objects.all().order_by('type')
+    if request.method=='POST':
+        name=request.POST['type']
+        docname=request.POST['docname']
+        requirements(type=name,documentname=docname).save()
+        messages.success(request, "DOCUMENT TYPE AND DOCUMENT NAME HAS BEEN UPDATED")
+        return redirect('/audit/typeupload/')
+    return render(request,'audit/typeupload.html',{'list':req})
+
+def download(request,file):
+    if request.method == 'POST':
+        files=open(f'{settings.MEDIA_ROOT}/{file}', 'rb')
+        key = request.POST['key']
+        pdfReader = PyPDF2.PdfFileReader(files)
+        r = pdfReader.numPages
+        data = ''
+        for p in range(r):
+            data += pdfReader.getPage(p).extractText()
+        length = len(data) // 4
+        f1 = 0
+        f2 = length
+        initial = ''
+        valid =0
+        for j in range(4):
+            data1 = data[f1:f2]
+            f3 = length
+            if j == 0:
+                d = hmac.new(key.encode(), data1.encode(), sha512).hexdigest()
+                times=node1.objects.all()
+                for i in times:
+                    if d==i.hashvalue:
+                        valid+=1
+                initial = d
+            elif j == 1:
+                d = hmac.new(initial.encode(), data1.encode(), sha512).hexdigest()
+                times = node2.objects.all()
+                for i in times:
+                    if d == i.hashvalue:
+                        valid += 1
+                initial = d
+            elif j == 2:
+                d = hmac.new(initial.encode(), data1.encode(), sha512).hexdigest()
+                times = node3.objects.all()
+                for i in times:
+                    if d == i.hashvalue:
+                        valid += 1
+                initial = d
+            elif j == 3:
+                d = hmac.new(initial.encode(), data1.encode(), sha512).hexdigest()
+                times = node4.objects.all()
+                for i in times:
+                    if d == i.hashvalue:
+                        valid += 1
+                initial = d
+            f1 += f3
+            f2 += f3
+        print(valid)
+        if valid == 4:
+            return redirect(f'/audit/alpha/{file}')
+        else:
+            return HttpResponse("YOU HAVE ENTERED INVALID KEY")
+    return redirect('/audit/request')
+
+def down(request,path):
+    file_path = os.path.join(settings.MEDIA_ROOT, str(path))
+    if os.path.exists(file_path):
+        with open(file_path, 'rb') as fh:
+            response = HttpResponse(fh.read(), content_type="application/vnd.ms-excel")
+            response['Content-Disposition'] = 'inline; filename=' + os.path.basename(file_path)
+            return response
+    raise Http404
 
 def logout(request):
-    del request.session['admin']
+    del request.session['audit']
+    messages.success(request, "LOGGED OUT SUCCESSFULLY")
     return redirect('/')
+
+

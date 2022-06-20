@@ -1,26 +1,20 @@
 from django.db import models
 
 # Create your models here.
-class admin(models.Model):
-    name= models.CharField(max_length=50,null=True,unique=True)
-    email = models.EmailField(null=True)
-    password = models.CharField(max_length=50,null=True)
-
-class bankaccess(models.Model):
-    name = models.CharField(max_length=50, null=True, unique=True)
-    managerid = models.IntegerField()
-    email = models.EmailField(null=True, unique=True)
-    password = models.CharField(max_length=50, null=True)
-
-class auditaccess(models.Model):
+class audit(models.Model):
     name = models.CharField(max_length=50, null=True, unique=True)
     email = models.EmailField(null=True, unique=True)
     auditerid = models.IntegerField()
     password = models.CharField(max_length=50, null=True)
 
-class useraccess(models.Model):
-    name = models.CharField(max_length=50, null=True, unique=True)
-    area = models.CharField(max_length=50, null=True)
-    email = models.EmailField(null=True, unique=True)
-    password = models.CharField(max_length=50, null=True)
+class requiredlist(models.Model):
     userid = models.CharField(max_length=50, null=True)
+    requestid = models.CharField(max_length=50, null=True)
+    list = models.TextField()
+    file= models.FileField(null=True)
+    key = models.CharField(max_length=50, null=True)
+    access = models.BooleanField(null=True)
+
+class requirements(models.Model):
+    type=models.CharField(max_length=50, null=True)
+    documentname=models.CharField(max_length=50, null=True)

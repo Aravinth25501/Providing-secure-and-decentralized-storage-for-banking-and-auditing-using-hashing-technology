@@ -2,18 +2,18 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('', views.admins),
-    path('login/', views.login),
-    path('auditaccess/', views.audittable),
-    path('bankaccess/', views.banktable),
-    path('useraccess/', views.usertable),
-    path('auditaccess/<str:name>/<str:email>/<int:auditerid>/<str:password>', views.auditapprove),
-    path('bankaccess/<str:name>/<str:email>/<int:managerid>/<str:password>', views.bankapprove),
-    path('useraccess/<str:name>/<str:email>/<str:type>/<str:password>/<str:userid>', views.userapprove),
-    path('audit/', views.audits),
-    path('bank/', views.banks),
-    path('keyaccess/', views.keyaccess),
-    path('bankkey/', views.bankkey),
-    path('user/', views.users),
+    path('',views.audits),
+    path('login/<str:login>/', views.login),
+    path('client/', views.client),
+    path('list/<str:userid>/<str:type>', views.list),
+    path('request/', views.request),
+    path('viewrequest/<str:userid>', views.viewrequest),
+    path('view/<str:requestid>', views.viewlist),
+    path('checklist/<str:userid>', views.checklist),
+    path('reqaccess/<str:requestid>/<str:id>', views.reqaccess),
+    path('typeupload/', views.typeupload),
+    path('download/<str:file>', views.download),
+    path('alpha/<str:path>', views.down),
     path('logout/', views.logout),
+
 ]
